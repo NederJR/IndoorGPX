@@ -16,6 +16,18 @@ Abra http://localhost:5173 no **Chrome ou Edge** (Windows, macOS, Android). O We
 
 > O Bluetooth só funciona em `localhost` ou HTTPS. Para abrir em outro aparelho da rede (tablet na frente do rolo), publique o build (`npm run build` → pasta `dist/`) em um host HTTPS.
 
+## Publicar no GitHub Pages
+
+O workflow `.github/workflows/deploy.yml` compila e publica o app a cada push na branch `main`.
+
+1. Crie um repositório **público** no GitHub (no plano gratuito, o Pages exige repositório público).
+2. Em **Settings → Pages → Build and deployment → Source**, escolha **GitHub Actions**.
+3. Faça o push. O app fica em `https://<usuario>.github.io/<repositorio>/`.
+
+Para usar o Strava pelo link publicado, o *Authorization Callback Domain* do app Strava deve ser `<usuario>.github.io`.
+
+Para testar localmente como no Pages: `BASE_PATH=/IndoorGPX/ npm run build` e depois `npx vite preview --base /IndoorGPX/`.
+
 ## Como usar
 
 1. **Importar GPX**: botão, arraste e solte, ou "Usar rota de exemplo".
