@@ -89,6 +89,22 @@
           <label>CdA – arrasto aerodinâmico (m²) <input type="number" name="cda" min="0.15" max="0.6" step="0.01" required /></label>
           <label>Crr – resistência de rolamento <input type="number" name="crr" min="0.001" max="0.02" step="0.0005" required /></label>
         </details>
+        <fieldset class="strava-box">
+          <legend>Strava</legend>
+          <p class="strava-status" id="stravaStatus">Não conectado</p>
+          <details id="stravaSetup">
+            <summary>Credenciais do app Strava</summary>
+            <ol class="help">
+              <li>Crie um app em <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener">strava.com/settings/api</a>.</li>
+              <li>Em <em>Authorization Callback Domain</em> use <code id="stravaDomain">localhost</code>.</li>
+              <li>Copie o Client ID e o Client Secret para cá.</li>
+            </ol>
+            <label>Client ID <input type="text" name="stravaClientId" inputmode="numeric" autocomplete="off" /></label>
+            <label>Client Secret <input type="password" name="stravaClientSecret" autocomplete="off" /></label>
+            <small class="help">Ficam salvos só neste navegador.</small>
+          </details>
+          <button type="button" class="btn strava" id="btnStravaConnect">Conectar ao Strava</button>
+        </fieldset>
         <div class="dialog-actions">
           <button class="btn" value="cancel" formnovalidate>Cancelar</button>
           <button class="btn primary" value="save">Salvar</button>
@@ -99,9 +115,11 @@
     <dialog id="summaryDialog">
       <h2>Pedal concluído 🎉</h2>
       <div class="summary" id="summaryContent"></div>
+      <p class="upload-status" id="uploadStatus" hidden></p>
       <div class="dialog-actions">
         <button class="btn" id="btnRestart">Pedalar de novo</button>
-        <button class="btn primary" id="btnExport">Exportar TCX</button>
+        <button class="btn" id="btnExport">Exportar TCX</button>
+        <button class="btn strava" id="btnStravaUpload">Enviar ao Strava</button>
       </div>
     </dialog>
 

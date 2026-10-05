@@ -7,6 +7,8 @@ import { HeartRateMonitor } from './hrm';
 import { AIR_DENSITY, stepSpeed } from './physics';
 import { buildTcx, downloadFile, type Sample } from './export';
 import { loadSettings, saveSettings, type Settings } from './settings';
+import { gradeColor } from './grade-colors';
+import { Strava } from './strava';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -40,12 +42,14 @@ const live = { power: 0, cadence: 0, speedKmh: 0, hr: 0, trainerAt: 0, hrAt: 0, 
 let demoMode = false;
 let demoPower = 150;
 let wakeLock: WakeLockSentinel | null = null;
+let uploadedActivityUrl: string | null = null;
 
 // ---------- Componentes ----------
 const mapView = new MapView($('map'));
 const profile = new ElevationProfile($<HTMLCanvasElement>('profile'));
 const trainer = new Trainer();
 const hrm = new HeartRateMonitor();
+const strava = new Strava();
 
 // ---------- Leitura dos sensores ----------
 trainer.onData = (d) => {
@@ -189,7 +193,9 @@ function updateHud() {
   $('mPower').textContent = String(Math.round(currentPower()));
   $('mCadence').textContent = cadence > 0 || trainerFresh() || demoMode ? String(Math.round(cadence)) : '--';
   $('mHr').textContent = hr > 0 ? String(hr) : '--';
-  $('mGrade').textContent = route.gradeAt(distance).toFixed(1);
+  const grade = route.gradeAt(distance);
+  $('mGrade').textContent = grade.toFixed(1);
+  $('mGrade').style.color = gradeColor(grade);
   $('mDistance').textContent = ((distance - startDistance) / 1000).toFixed(2);
   $('mDistanceTotal').textContent = `/ ${((route.totalDistance - startDistance) / 1000).toFixed(1)} km`;
   $('mTime').textContent = formatDuration(movingTime);
@@ -226,6 +232,7 @@ function resetRide(fromDistance: number) {
   ascent = 0;
   lastEle = route?.elevationAt(fromDistance) ?? 0;
   samples = [];
+  uploadedActivityUrl = null;
   lastGradeSent = NaN;
   mapView.resetDone();
   setState('ready');
@@ -235,6 +242,10 @@ function resetRide(fromDistance: number) {
 
 function startOrPause() {
   if (!route) return;
+  if (state === 'finished') {
+    showSummary();
+    return;
+  }
   if (state === 'ready' || state === 'paused') {
     lastTickAt = performance.now();
     if (state === 'ready') {
@@ -268,8 +279,8 @@ function setState(next: RideState) {
   const btnStart = $<HTMLButtonElement>('btnStart');
   const btnFinish = $<HTMLButtonElement>('btnFinish');
   btnStart.textContent =
-    state === 'riding' ? '❚❚ Pausar' : state === 'paused' ? '▶ Continuar' : state === 'finished' ? '✓ Concluído' : '▶ Iniciar';
-  btnStart.disabled = state === 'finished' || state === 'empty';
+    state === 'riding' ? '❚❚ Pausar' : state === 'paused' ? '▶ Continuar' : state === 'finished' ? '✓ Ver resumo' : '▶ Iniciar';
+  btnStart.disabled = state === 'empty';
   btnFinish.disabled = !(state === 'riding' || state === 'paused');
   $('profileHint').hidden = state !== 'ready';
 }
@@ -292,7 +303,58 @@ function showSummary() {
     ['Concluído', `${Math.round((dist * 1000 * 100) / Math.max(1, route!.totalDistance - startDistance))}%`],
   ];
   $('summaryContent').innerHTML = items.map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join('');
+  const btnUpload = $<HTMLButtonElement>('btnStravaUpload');
+  btnUpload.disabled = !!uploadedActivityUrl;
+  btnUpload.textContent = uploadedActivityUrl ? '✓ Enviado ao Strava' : 'Enviar ao Strava';
+  if (!uploadedActivityUrl) $('uploadStatus').hidden = true;
   $<HTMLDialogElement>('summaryDialog').showModal();
+}
+
+function setUploadStatus(message: string, error = false, link?: string) {
+  const el = $('uploadStatus');
+  el.textContent = message;
+  el.classList.toggle('error', error);
+  if (link) {
+    const a = document.createElement('a');
+    a.href = link;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.textContent = 'Ver no Strava ↗';
+    el.append(' ', a);
+  }
+  el.hidden = false;
+}
+
+async function uploadToStrava() {
+  if (!route || !samples.length) {
+    setUploadStatus('Nada gravado para enviar.', true);
+    return;
+  }
+  if (!strava.connected) {
+    setUploadStatus('Conecte sua conta Strava e tente novamente.', true);
+    openSettings();
+    return;
+  }
+  const btn = $<HTMLButtonElement>('btnStravaUpload');
+  btn.disabled = true;
+  try {
+    const km = ((distance - startDistance) / 1000).toFixed(1);
+    const result = await strava.uploadTcx(
+      buildTcx(samples, movingTime, `IndoorGPX – ${route.name}`),
+      {
+        name: `IndoorGPX: ${route.name}`,
+        description: `Pedal virtual no IndoorGPX · ${km} km da rota "${route.name}"`,
+        externalId: `indoorgpx-${samples[0].time}`,
+      },
+      (msg) => setUploadStatus(msg),
+    );
+    uploadedActivityUrl = result.url;
+    btn.textContent = '✓ Enviado ao Strava';
+    setUploadStatus('Atividade enviada!', false, result.url);
+  } catch (err) {
+    btn.disabled = false;
+    setUploadStatus(err instanceof Error ? err.message : String(err), true);
+  }
 }
 
 function exportRide() {
@@ -422,6 +484,7 @@ $('btnFinish').addEventListener('click', () => {
   if (confirm('Finalizar o pedal?')) finishRide();
 });
 $('btnExport').addEventListener('click', exportRide);
+$('btnStravaUpload').addEventListener('click', uploadToStrava);
 $('btnRestart').addEventListener('click', () => {
   $<HTMLDialogElement>('summaryDialog').close();
   resetRide(0);
@@ -458,16 +521,68 @@ window.addEventListener('beforeunload', (e) => {
 const settingsDialog = $<HTMLDialogElement>('settingsDialog');
 const settingsForm = $<HTMLFormElement>('settingsForm');
 
-$('btnSettings').addEventListener('click', () => {
+const formField = (name: string) => settingsForm.elements.namedItem(name) as HTMLInputElement;
+
+function openSettings() {
   for (const [key, value] of Object.entries(settings)) {
     const field = settingsForm.elements.namedItem(key) as HTMLInputElement | HTMLSelectElement | null;
     if (field) field.value = String(value);
   }
+  formField('stravaClientId').value = strava.config.clientId;
+  formField('stravaClientSecret').value = strava.config.clientSecret;
+  renderStravaStatus();
   settingsDialog.showModal();
+}
+
+$('btnSettings').addEventListener('click', openSettings);
+
+function saveStravaConfig() {
+  const clientId = formField('stravaClientId').value.trim();
+  const clientSecret = formField('stravaClientSecret').value.trim();
+  if (clientId !== strava.config.clientId || clientSecret !== strava.config.clientSecret) {
+    strava.setConfig({ clientId, clientSecret });
+  }
+}
+
+function renderStravaStatus(message?: string) {
+  const btn = $<HTMLButtonElement>('btnStravaConnect');
+  $('stravaStatus').textContent =
+    message ??
+    (strava.connected
+      ? `Conectado como ${strava.athleteName}`
+      : strava.configured
+        ? 'Não conectado'
+        : 'Informe as credenciais do seu app Strava para conectar.');
+  btn.textContent = strava.connected ? 'Desconectar' : 'Conectar ao Strava';
+  btn.classList.toggle('strava', !strava.connected);
+  $<HTMLDetailsElement>('stravaSetup').open = !strava.configured;
+}
+
+$('stravaDomain').textContent = location.hostname;
+
+$('btnStravaConnect').addEventListener('click', async () => {
+  const btn = $<HTMLButtonElement>('btnStravaConnect');
+  if (strava.connected) {
+    await strava.disconnect();
+    renderStravaStatus();
+    return;
+  }
+  saveStravaConfig();
+  btn.disabled = true;
+  renderStravaStatus('Aguardando autorização na janela do Strava…');
+  try {
+    await strava.connect();
+    renderStravaStatus();
+  } catch (err) {
+    renderStravaStatus(err instanceof Error ? err.message : String(err));
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 settingsDialog.addEventListener('close', () => {
   if (settingsDialog.returnValue !== 'save') return;
+  saveStravaConfig();
   const data = new FormData(settingsForm);
   settings = {
     riderKg: Number(data.get('riderKg')),

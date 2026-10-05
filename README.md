@@ -22,9 +22,21 @@ Abra http://localhost:5173 no **Chrome ou Edge** (Windows, macOS, Android). O We
 2. **Conectar rolo** (e, se quiser, **Conectar FC** para cinta cardíaca).
 3. Opcional: clique no perfil altimétrico para escolher o ponto de partida.
 4. **Iniciar** (ou barra de espaço). Pedale: quanto mais potência, mais rápido o ciclista anda no mapa. Se você parar de pedalar, ele para.
-5. Ao terminar, **Exportar TCX** e envie ao Strava/Garmin Connect (inclui potência, cadência e FC).
+5. Ao terminar, **Enviar ao Strava** (vai como *Virtual Ride*) ou **Exportar TCX** para subir manualmente no Strava/Garmin Connect. O arquivo inclui potência, cadência e FC.
+
+O mapa e o perfil altimétrico são coloridos pela inclinação (legenda no canto do mapa); o trecho já percorrido fica escurecido.
 
 Sem rolo por perto? Use **Demo**: um controle deslizante (ou ↑/↓ no teclado) simula a potência.
+
+## Conectar ao Strava
+
+Como o app não tem servidor, cada usuário usa o próprio app de API do Strava (é gratuito e leva 2 minutos):
+
+1. Acesse https://www.strava.com/settings/api e crie um app (nome e site podem ser qualquer coisa).
+2. Em **Authorization Callback Domain**, coloque `localhost` (ou o domínio onde o IndoorGPX estiver hospedado).
+3. Em ⚙ **Configurações → Strava**, cole o **Client ID** e o **Client Secret** e clique em **Conectar ao Strava**. Autorize na janela que abrir, mantendo marcada a permissão de enviar atividades.
+
+O Client Secret e os tokens ficam salvos só no `localStorage` do navegador. Para um app público com vários usuários, o ideal é mover a troca de token (`src/strava.ts`, `requestToken`) para um backend.
 
 ## Como funciona
 
@@ -37,6 +49,8 @@ Sem rolo por perto? Use **Demo**: um controle deslizante (ou ↑/↓ no teclado)
 | `src/map.ts` | Mapa Leaflet (OSM/Relevo/Satélite), rota, trecho percorrido e ciclista com seta de direção. |
 | `src/elevation.ts` | Perfil altimétrico em canvas. |
 | `src/export.ts` | Geração do arquivo TCX. |
+| `src/strava.ts` | OAuth do Strava (popup + `strava-callback.html` via `BroadcastChannel`), renovação de token e upload. |
+| `src/grade-colors.ts` | Faixas de cor por inclinação (mapa, perfil e HUD). |
 | `src/main.ts` | Estado do pedal, loop de simulação (10 Hz) e interface. |
 
 **Configurações (⚙):** peso do ciclista e da bike, dificuldade (% da inclinação real enviada ao rolo, como o "trainer difficulty" do Zwift), fonte da velocidade (física pela potência ou velocidade do rolo), CdA e Crr.

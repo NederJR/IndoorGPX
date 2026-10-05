@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IndoorGPX · Strava</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #11151c;
+        color: #f2f4f7;
+        font-family: system-ui, sans-serif;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="msg">Concluindo conexão com o Strava…</p>
+    <script type="module">
+      import { OAUTH_CHANNEL } from './src/strava.ts';
+
+      const q = new URLSearchParams(location.search);
+      const result = {
+        code: q.get('code') ?? undefined,
+        scope: q.get('scope') ?? undefined,
+        state: q.get('state') ?? undefined,
+        error: q.get('error') ?? undefined,
+      };
+      new BroadcastChannel(OAUTH_CHANNEL).postMessage(result);
+      document.getElementById('msg').textContent = result.error
+        ? 'Autorização não concluída. Você pode fechar esta janela.'
+        : 'Pronto! Você pode fechar esta janela.';
+      setTimeout(() => window.close(), 800);
+    </script>
+  </body>
+</html>

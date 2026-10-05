@@ -9,9 +9,8 @@
   --blue: #2f80ed;
   --ok: #27c26c;
   --warn: #f5b301;
-  --profile-line: #4c95f5;
-  --profile-fill: rgba(47, 128, 237, 0.22);
-  --profile-done: rgba(255, 107, 26, 0.55);
+  --profile-line: rgba(255, 255, 255, 0.85);
+  --profile-done: rgba(17, 21, 28, 0.6);
   color-scheme: dark;
 }
 
@@ -249,6 +248,30 @@ body {
 
 .flag-finish {
   background: #111;
+}
+
+.grade-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  max-width: 280px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.grade-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.grade-legend i {
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
 }
 
 /* ---------- HUD de métricas ---------- */
@@ -506,6 +529,67 @@ details[open] {
   margin-top: 16px;
 }
 
+.btn.strava {
+  background: #fc4c02;
+  border-color: #fc4c02;
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn.strava:hover:not(:disabled) {
+  background: #ff6a2b;
+}
+
+.strava-box {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.strava-box legend {
+  padding: 0 6px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.strava-status {
+  margin: 0;
+  font-size: 14px;
+}
+
+.help {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+small.help {
+  padding: 0;
+}
+
+.help a {
+  color: #ff8a4c;
+}
+
+.upload-status {
+  margin: 16px 0 0;
+  font-size: 14px;
+}
+
+.upload-status.error {
+  color: #ff7b7f;
+}
+
+.upload-status a {
+  color: #ff8a4c;
+  font-weight: 600;
+}
+
 .summary {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -566,8 +650,14 @@ details[open] {
 
   .demo-panel {
     top: auto;
-    bottom: 64px;
-    right: 8px;
+    bottom: 12px;
+    right: 56px;
+    width: auto;
+    left: 8px;
+  }
+
+  .grade-legend {
+    display: none;
   }
 
   .bottom {

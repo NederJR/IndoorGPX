@@ -3,9 +3,10 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Route, RoutePosition } from './gpx';
+import { GRADE_BANDS, gradeBand } from './grade-colors';
 
-const ROUTE_COLOR = '#2f80ed';
-const DONE_COLOR = '#ff6b1a';
+/** Trecho percorrido: cinza escuro por cima das cores de inclinação. */
+const DONE_COLOR = '#3a4250';
 const FOLLOW_PAN_INTERVAL_MS = 1000;
 
 export class MapView {
@@ -13,7 +14,8 @@ export class MapView {
 
   private map: L.Map;
   private routeLayer = L.layerGroup();
-  private routeLine?: L.Polyline;
+  private outline?: L.Polyline;
+  private legend = gradeLegend();
   private doneLine?: L.Polyline;
   private rider?: L.Marker;
   private route?: Route;
@@ -51,12 +53,15 @@ export class MapView {
     this.route = route;
     this.routeLayer.clearLayers();
     this.lastDoneIndex = -1;
+    this.legend.addTo(this.map);
 
     const latlngs = route.points.map((p) => L.latLng(p.lat, p.lon));
     // Contorno branco por baixo deixa a rota legível sobre qualquer camada.
-    L.polyline(latlngs, { color: '#fff', weight: 8, opacity: 0.8 }).addTo(this.routeLayer);
-    this.routeLine = L.polyline(latlngs, { color: ROUTE_COLOR, weight: 5 }).addTo(this.routeLayer);
-    this.doneLine = L.polyline([], { color: DONE_COLOR, weight: 5 }).addTo(this.routeLayer);
+    this.outline = L.polyline(latlngs, { color: '#fff', weight: 9, opacity: 0.85 }).addTo(this.routeLayer);
+    for (const run of gradeRuns(route)) {
+      L.polyline(run.latlngs, { color: GRADE_BANDS[run.band].color, weight: 6 }).addTo(this.routeLayer);
+    }
+    this.doneLine = L.polyline([], { color: DONE_COLOR, weight: 6, opacity: 0.85 }).addTo(this.routeLayer);
 
     const first = route.points[0];
     const last = route.points[route.points.length - 1];
@@ -74,7 +79,7 @@ export class MapView {
       zIndexOffset: 1000,
     }).addTo(this.routeLayer);
 
-    this.map.fitBounds(this.routeLine.getBounds(), { padding: [40, 40] });
+    this.map.fitBounds(this.outline.getBounds(), { padding: [40, 40] });
   }
 
   /** Atualiza o ciclista. Chamado a cada frame. */
@@ -142,6 +147,31 @@ export class MapView {
   invalidateSize() {
     this.map.invalidateSize();
   }
+}
+
+/** Agrupa pontos consecutivos com a mesma faixa de inclinação em uma única polyline. */
+function gradeRuns(route: Route): { band: number; latlngs: L.LatLng[] }[] {
+  const pts = route.points;
+  const runs: { band: number; latlngs: L.LatLng[] }[] = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const band = gradeBand(route.gradeAt((pts[i].dist + pts[i + 1].dist) / 2));
+    const a = L.latLng(pts[i].lat, pts[i].lon);
+    const b = L.latLng(pts[i + 1].lat, pts[i + 1].lon);
+    const last = runs[runs.length - 1];
+    if (last && last.band === band) last.latlngs.push(b);
+    else runs.push({ band, latlngs: [a, b] });
+  }
+  return runs;
+}
+
+function gradeLegend(): L.Control {
+  const legend = new L.Control({ position: 'bottomleft' });
+  legend.onAdd = () => {
+    const el = L.DomUtil.create('div', 'grade-legend');
+    el.innerHTML = GRADE_BANDS.map((b) => `<span><i style="background:${b.color}"></i>${b.label}</span>`).join('');
+    return el;
+  };
+  return legend;
 }
 
 function flagIcon(kind: 'start' | 'finish'): L.DivIcon {
