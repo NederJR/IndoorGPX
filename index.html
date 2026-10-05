@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#11151c" />
+    <title>IndoorGPX</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23ff6b1a'/><circle cx='16' cy='16' r='6' fill='white'/></svg>" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><span class="brand-dot"></span>IndoorGPX</div>
+      <div class="route-name" id="routeName">Nenhuma rota carregada</div>
+      <div class="actions">
+        <label class="btn" title="Importar arquivo .gpx">
+          <input type="file" id="fileInput" accept=".gpx,application/gpx+xml" hidden />
+          Importar GPX
+        </label>
+        <button class="btn device" id="btnTrainer"><span class="status-dot"></span><span class="label">Conectar rolo</span></button>
+        <button class="btn device" id="btnHr"><span class="status-dot"></span><span class="label">Conectar FC</span></button>
+        <button class="btn" id="btnDemo" title="Simular potência sem rolo">Demo</button>
+        <button class="btn icon" id="btnSettings" title="Configurações" aria-label="Configurações">⚙</button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <div id="map"></div>
+
+      <section class="hud" id="hud" hidden>
+        <div class="metric big"><span class="value" id="mSpeed">0.0</span><span class="unit">km/h</span><span class="name">Velocidade</span></div>
+        <div class="metric"><span class="value" id="mPower">0</span><span class="unit">W</span><span class="name">Potência</span></div>
+        <div class="metric"><span class="value" id="mCadence">--</span><span class="unit">rpm</span><span class="name">Cadência</span></div>
+        <div class="metric"><span class="value" id="mHr">--</span><span class="unit">bpm</span><span class="name">FC</span></div>
+        <div class="metric"><span class="value" id="mGrade">0.0</span><span class="unit">%</span><span class="name">Inclinação</span></div>
+        <div class="metric"><span class="value" id="mDistance">0.00</span><span class="unit" id="mDistanceTotal">/ 0.0 km</span><span class="name">Distância</span></div>
+        <div class="metric"><span class="value" id="mTime">0:00:00</span><span class="name">Tempo</span></div>
+        <div class="metric"><span class="value" id="mEle">0</span><span class="unit">m</span><span class="name">Altitude</span></div>
+        <div class="metric"><span class="value" id="mAscent">0</span><span class="unit">m</span><span class="name">Subida</span></div>
+      </section>
+
+      <section class="demo-panel" id="demoPanel" hidden>
+        <label for="demoPower">Potência simulada: <strong id="demoPowerValue">150 W</strong></label>
+        <input type="range" id="demoPower" min="0" max="600" step="5" value="150" />
+        <small>Use ↑ / ↓ no teclado para ajustar</small>
+      </section>
+
+      <button class="fab" id="btnCenter" hidden title="Seguir ciclista">◎ Seguir</button>
+
+      <div class="empty" id="emptyState">
+        <h1>Pedale qualquer rota no seu rolo</h1>
+        <p>Exporte o <strong>.gpx</strong> de uma atividade ou rota do Strava, Garmin Connect, Komoot… e importe aqui. A inclinação da rota é enviada ao rolo enquanto você acompanha seu progresso no mapa.</p>
+        <div class="empty-actions">
+          <label class="btn primary">
+            <input type="file" id="fileInput2" accept=".gpx,application/gpx+xml" hidden />
+            Importar GPX
+          </label>
+          <button class="btn" id="btnSample">Usar rota de exemplo</button>
+        </div>
+        <small>ou arraste o arquivo para cá</small>
+      </div>
+
+      <div class="drop-hint" id="dropHint" hidden>Solte o arquivo .gpx</div>
+      <div class="toast" id="toast" hidden></div>
+    </main>
+
+    <footer class="bottom" id="bottom" hidden>
+      <div class="controls">
+        <button class="btn primary big" id="btnStart">▶ Iniciar</button>
+        <button class="btn" id="btnFinish" disabled>■ Finalizar</button>
+        <span class="hint" id="profileHint">Clique no perfil para escolher o ponto de partida</span>
+      </div>
+      <canvas id="profile" class="profile"></canvas>
+    </footer>
+
+    <dialog id="settingsDialog">
+      <form method="dialog" id="settingsForm">
+        <h2>Configurações</h2>
+        <label>Peso do ciclista (kg) <input type="number" name="riderKg" min="30" max="200" step="0.5" required /></label>
+        <label>Peso da bike (kg) <input type="number" name="bikeKg" min="3" max="40" step="0.1" required /></label>
+        <label>Dificuldade do rolo (% da inclinação) <input type="number" name="difficulty" min="0" max="150" step="5" required /></label>
+        <label>Velocidade virtual
+          <select name="speedSource">
+            <option value="power">Calculada pela potência (recomendado)</option>
+            <option value="trainer">Velocidade informada pelo rolo</option>
+          </select>
+        </label>
+        <details>
+          <summary>Avançado</summary>
+          <label>CdA – arrasto aerodinâmico (m²) <input type="number" name="cda" min="0.15" max="0.6" step="0.01" required /></label>
+          <label>Crr – resistência de rolamento <input type="number" name="crr" min="0.001" max="0.02" step="0.0005" required /></label>
+        </details>
+        <div class="dialog-actions">
+          <button class="btn" value="cancel" formnovalidate>Cancelar</button>
+          <button class="btn primary" value="save">Salvar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="summaryDialog">
+      <h2>Pedal concluído 🎉</h2>
+      <div class="summary" id="summaryContent"></div>
+      <div class="dialog-actions">
+        <button class="btn" id="btnRestart">Pedalar de novo</button>
+        <button class="btn primary" id="btnExport">Exportar TCX</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
