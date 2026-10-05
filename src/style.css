@@ -274,16 +274,24 @@ body {
   border-radius: 2px;
 }
 
-/* ---------- HUD de métricas ---------- */
-.hud {
+/* ---------- Painel de campos de dados ---------- */
+.hud-wrap {
   position: absolute;
   top: 12px;
   left: 12px;
   z-index: 500;
+  max-width: calc(100% - 24px);
+}
+
+.hud {
+  --cols: 4;
   display: grid;
-  grid-template-columns: repeat(4, minmax(92px, auto));
+  grid-template-columns: repeat(var(--cols), minmax(92px, auto));
+  grid-auto-flow: dense;
   gap: 2px;
-  padding: 10px;
+  min-width: 120px;
+  min-height: 56px;
+  padding: 10px 30px 10px 10px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -291,17 +299,15 @@ body {
 }
 
 .metric {
+  position: relative;
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-areas: 'value unit' 'name name';
   align-items: baseline;
+  align-content: center;
   column-gap: 4px;
   padding: 6px 10px;
-}
-
-.metric.big {
-  grid-row: span 2;
-  align-content: center;
+  border-radius: 8px;
 }
 
 .metric .value {
@@ -309,17 +315,14 @@ body {
   font-size: 24px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-.metric.big .value {
-  font-size: 48px;
-  color: var(--accent);
+  white-space: nowrap;
 }
 
 .metric .unit {
   grid-area: unit;
   font-size: 12px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .metric .name {
@@ -328,6 +331,223 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.metric.size-w {
+  grid-column: span 2;
+}
+
+.metric.size-t {
+  grid-row: span 2;
+}
+
+.metric.size-l {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+
+.metric.size-w .value {
+  font-size: 32px;
+}
+
+.metric.size-t .value {
+  font-size: 48px;
+}
+
+.metric.size-l .value {
+  font-size: 64px;
+}
+
+/* O primeiro campo é o destaque, como no Garmin. */
+.metric:first-child .value {
+  color: var(--accent);
+}
+
+.hud-edit {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.5;
+}
+
+.hud-wrap:hover .hud-edit,
+.hud-edit.active,
+.hud-edit:focus-visible {
+  opacity: 1;
+}
+
+.hud-edit:hover,
+.hud-edit.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Modo edição */
+.hud.editing {
+  border: 1px dashed var(--accent);
+}
+
+.hud.editing .metric {
+  cursor: grab;
+  background: rgba(255, 255, 255, 0.05);
+  outline: 1px solid var(--border);
+  user-select: none;
+  touch-action: none;
+}
+
+.hud.editing.empty::before {
+  content: 'Painel vazio: use "+ Adicionar campo"';
+  grid-column: 1 / -1;
+  align-self: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.w-btn {
+  display: none;
+  position: absolute;
+  top: 2px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #2a313d;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 22px;
+  cursor: pointer;
+}
+
+.w-size {
+  right: 26px;
+}
+
+.w-remove {
+  right: 2px;
+}
+
+.w-remove:hover {
+  background: #e5484d;
+}
+
+.w-size:hover {
+  background: var(--blue);
+}
+
+.hud.editing .w-btn {
+  display: block;
+}
+
+.w-ghost {
+  opacity: 0.35;
+  outline: 2px dashed var(--accent) !important;
+}
+
+.w-chosen {
+  cursor: grabbing;
+}
+
+.hud-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--panel-solid);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+}
+
+.hud-toolbar-hint {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.cols-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.cols-control strong {
+  min-width: 1ch;
+  color: var(--text);
+  text-align: center;
+}
+
+.cols-control .btn {
+  padding: 4px 10px;
+}
+
+/* Catálogo de campos */
+dialog.wide {
+  width: min(640px, calc(100% - 32px));
+}
+
+.catalog {
+  display: grid;
+  gap: 14px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.catalog h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.catalog-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 6px;
+}
+
+.catalog-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.catalog-item:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.catalog-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ci-preview {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .demo-panel {
@@ -623,12 +843,16 @@ small.help {
     flex-basis: 100%;
   }
 
-  .hud {
+  .hud-wrap {
     top: 8px;
     left: 8px;
     right: 8px;
-    grid-template-columns: repeat(3, 1fr);
-    padding: 6px;
+    max-width: none;
+  }
+
+  .hud {
+    grid-template-columns: repeat(var(--cols), 1fr);
+    padding: 6px 28px 6px 6px;
   }
 
   .metric {
@@ -639,13 +863,20 @@ small.help {
     font-size: 18px;
   }
 
-  .metric.big {
-    grid-row: auto;
-    grid-column: span 3;
+  .metric.size-w .value {
+    font-size: 24px;
   }
 
-  .metric.big .value {
-    font-size: 36px;
+  .metric.size-t .value {
+    font-size: 32px;
+  }
+
+  .metric.size-l .value {
+    font-size: 40px;
+  }
+
+  .hud-edit {
+    opacity: 1;
   }
 
   .demo-panel {

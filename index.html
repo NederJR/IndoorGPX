@@ -26,17 +26,21 @@
     <main class="stage">
       <div id="map"></div>
 
-      <section class="hud" id="hud" hidden>
-        <div class="metric big"><span class="value" id="mSpeed">0.0</span><span class="unit">km/h</span><span class="name">Velocidade</span></div>
-        <div class="metric"><span class="value" id="mPower">0</span><span class="unit">W</span><span class="name">Potência</span></div>
-        <div class="metric"><span class="value" id="mCadence">--</span><span class="unit">rpm</span><span class="name">Cadência</span></div>
-        <div class="metric"><span class="value" id="mHr">--</span><span class="unit">bpm</span><span class="name">FC</span></div>
-        <div class="metric"><span class="value" id="mGrade">0.0</span><span class="unit">%</span><span class="name">Inclinação</span></div>
-        <div class="metric"><span class="value" id="mDistance">0.00</span><span class="unit" id="mDistanceTotal">/ 0.0 km</span><span class="name">Distância</span></div>
-        <div class="metric"><span class="value" id="mTime">0:00:00</span><span class="name">Tempo</span></div>
-        <div class="metric"><span class="value" id="mEle">0</span><span class="unit">m</span><span class="name">Altitude</span></div>
-        <div class="metric"><span class="value" id="mAscent">0</span><span class="unit">m</span><span class="name">Subida</span></div>
-      </section>
+      <div class="hud-wrap" id="hudWrap" hidden>
+        <section class="hud" id="hud" aria-label="Campos de dados"></section>
+        <button class="hud-edit" id="btnEditHud" title="Personalizar painel" aria-label="Personalizar painel">✎</button>
+        <div class="hud-toolbar" id="hudToolbar" hidden>
+          <span class="hud-toolbar-hint">Arraste para reordenar · ⤢ tamanho · ✕ remover</span>
+          <button class="btn" id="btnAddWidget">+ Adicionar campo</button>
+          <span class="cols-control">Colunas
+            <button class="btn icon" id="colsMinus" aria-label="Menos colunas">−</button>
+            <strong id="colsValue">4</strong>
+            <button class="btn icon" id="colsPlus" aria-label="Mais colunas">+</button>
+          </span>
+          <button class="btn" id="btnResetLayout">Restaurar padrão</button>
+          <button class="btn primary" id="btnDoneLayout">Concluir</button>
+        </div>
+      </div>
 
       <section class="demo-panel" id="demoPanel" hidden>
         <label for="demoPower">Potência simulada: <strong id="demoPowerValue">150 W</strong></label>
@@ -121,6 +125,12 @@
         <button class="btn" id="btnExport">Exportar TCX</button>
         <button class="btn strava" id="btnStravaUpload">Enviar ao Strava</button>
       </div>
+    </dialog>
+
+    <dialog id="widgetDialog" class="wide">
+      <h2>Adicionar campo</h2>
+      <div class="catalog" id="widgetCatalog"></div>
+      <form method="dialog" class="dialog-actions"><button class="btn primary">Fechar</button></form>
     </dialog>
 
     <script type="module" src="/src/main.ts"></script>

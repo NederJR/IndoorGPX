@@ -7,7 +7,8 @@ import { HeartRateMonitor } from './hrm';
 import { AIR_DENSITY, stepSpeed } from './physics';
 import { buildTcx, downloadFile, type Sample } from './export';
 import { loadSettings, saveSettings, type Settings } from './settings';
-import { gradeColor } from './grade-colors';
+import { Dashboard } from './dashboard';
+import { formatDuration, type RideMetrics } from './widgets';
 import { Strava } from './strava';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -32,6 +33,23 @@ let speed = 0; // m/s
 let movingTime = 0; // s
 let ascent = 0;
 let lastEle = 0;
+
+/** Estatísticas acumuladas do pedal (zeradas em resetRide). */
+const POWER_AVG_WINDOW_MS = 3000;
+const newStats = () => ({
+  rideTime: 0, // s pedalando (exclui pausas), base da potência média
+  energy: 0, // J
+  maxSpeed: 0,
+  maxPower: 0,
+  cadenceSum: 0,
+  cadenceTime: 0,
+  hrSum: 0,
+  hrTime: 0,
+  maxHr: 0,
+  descent: 0,
+  recentPower: [] as { t: number; p: number }[],
+});
+let stats = newStats();
 let lastTickAt = performance.now();
 let samples: Sample[] = [];
 let lastSampleAt = 0;
@@ -50,6 +68,7 @@ const profile = new ElevationProfile($<HTMLCanvasElement>('profile'));
 const trainer = new Trainer();
 const hrm = new HeartRateMonitor();
 const strava = new Strava();
+const dashboard = new Dashboard($('hud'));
 
 // ---------- Leitura dos sensores ----------
 trainer.onData = (d) => {
@@ -114,7 +133,9 @@ function simulate(dt: number, now: number) {
 
   const ele = route.elevationAt(distance);
   if (ele > lastEle) ascent += ele - lastEle;
+  else stats.descent += lastEle - ele;
   lastEle = ele;
+  accumulateStats(dt, now, power);
 
   if (now - lastGradeSentAt >= GRADE_SEND_INTERVAL_MS) sendGrade(grade, now);
 
@@ -125,6 +146,26 @@ function simulate(dt: number, now: number) {
     recordSample();
     finishRide();
   }
+}
+
+function accumulateStats(dt: number, now: number, power: number) {
+  stats.rideTime += dt;
+  stats.energy += power * dt;
+  stats.maxSpeed = Math.max(stats.maxSpeed, speed);
+  stats.maxPower = Math.max(stats.maxPower, power);
+  const cadence = currentCadence();
+  if (cadence > 0) {
+    stats.cadenceSum += cadence * dt;
+    stats.cadenceTime += dt;
+  }
+  const hr = currentHeartRate();
+  if (hr > 0) {
+    stats.hrSum += hr * dt;
+    stats.hrTime += dt;
+    stats.maxHr = Math.max(stats.maxHr, hr);
+  }
+  stats.recentPower.push({ t: now, p: power });
+  while (stats.recentPower[0].t < now - POWER_AVG_WINDOW_MS) stats.recentPower.shift();
 }
 
 function sendGrade(grade: number, now: number) {
@@ -186,26 +227,40 @@ function frame(now: number) {
 }
 
 function updateHud() {
-  if (!route) return;
-  const cadence = currentCadence();
-  const hr = currentHeartRate();
-  $('mSpeed').textContent = (speed * 3.6).toFixed(1);
-  $('mPower').textContent = String(Math.round(currentPower()));
-  $('mCadence').textContent = cadence > 0 || trainerFresh() || demoMode ? String(Math.round(cadence)) : '--';
-  $('mHr').textContent = hr > 0 ? String(hr) : '--';
-  const grade = route.gradeAt(distance);
-  $('mGrade').textContent = grade.toFixed(1);
-  $('mGrade').style.color = gradeColor(grade);
-  $('mDistance').textContent = ((distance - startDistance) / 1000).toFixed(2);
-  $('mDistanceTotal').textContent = `/ ${((route.totalDistance - startDistance) / 1000).toFixed(1)} km`;
-  $('mTime').textContent = formatDuration(movingTime);
-  $('mEle').textContent = String(Math.round(route.elevationAt(distance)));
-  $('mAscent').textContent = String(Math.round(ascent));
+  if (route) dashboard.update(buildMetrics(route));
 }
 
-function formatDuration(sec: number): string {
-  const s = Math.floor(sec);
-  return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+function buildMetrics(r: Route): RideMetrics {
+  const power = currentPower();
+  const recent = stats.recentPower;
+  const grade = r.gradeAt(distance);
+  const done = distance - startDistance;
+  return {
+    speed,
+    avgSpeed: movingTime > 0 ? done / movingTime : 0,
+    maxSpeed: stats.maxSpeed,
+    power,
+    // Fora do pedal (antes de iniciar/pausado) mostra a potência instantânea.
+    power3s: state === 'riding' && recent.length ? recent.reduce((a, s) => a + s.p, 0) / recent.length : power,
+    avgPower: stats.rideTime > 0 ? stats.energy / stats.rideTime : 0,
+    maxPower: stats.maxPower,
+    cadence: currentCadence(),
+    avgCadence: stats.cadenceTime > 0 ? stats.cadenceSum / stats.cadenceTime : 0,
+    hasCadence: trainerFresh() || demoMode,
+    hr: currentHeartRate(),
+    avgHr: stats.hrTime > 0 ? stats.hrSum / stats.hrTime : 0,
+    maxHr: stats.maxHr,
+    grade,
+    trainerGrade: grade * (settings.difficulty / 100),
+    elevation: r.elevationAt(distance),
+    ascent,
+    descent: stats.descent,
+    distance: done,
+    totalDistance: r.totalDistance - startDistance,
+    movingTime,
+    energy: stats.energy,
+    riderKg: settings.riderKg,
+  };
 }
 
 // ---------- Fluxo do pedal ----------
@@ -216,7 +271,7 @@ function loadRoute(r: Route) {
     `${r.name} · ${(r.totalDistance / 1000).toFixed(1)} km · ↑${Math.round(r.totalAscent)} m` +
     (r.hasElevation ? '' : ' · (sem altimetria)');
   $('emptyState').hidden = true;
-  $('hud').hidden = false;
+  $('hudWrap').hidden = false;
   $('bottom').hidden = false;
   mapView.invalidateSize();
   mapView.setRoute(r);
@@ -230,6 +285,7 @@ function resetRide(fromDistance: number) {
   speed = 0;
   movingTime = 0;
   ascent = 0;
+  stats = newStats();
   lastEle = route?.elevationAt(fromDistance) ?? 0;
   samples = [];
   uploadedActivityUrl = null;
@@ -292,8 +348,7 @@ function hasUnsavedRide() {
 function showSummary() {
   const dist = (distance - startDistance) / 1000;
   const avgSpeed = movingTime > 0 ? (distance - startDistance) / movingTime : 0;
-  const powers = samples.map((s) => s.power);
-  const avgPower = powers.length ? powers.reduce((a, b) => a + b, 0) / powers.length : 0;
+  const avgPower = stats.rideTime > 0 ? stats.energy / stats.rideTime : 0;
   const items: [string, string][] = [
     ['Distância', `${dist.toFixed(2)} km`],
     ['Tempo', formatDuration(movingTime)],

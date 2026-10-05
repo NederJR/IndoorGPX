@@ -38,6 +38,8 @@ Para testar localmente como no Pages: `BASE_PATH=/IndoorGPX/ npm run build` e de
 
 O mapa e o perfil altimétrico são coloridos pela inclinação (legenda no canto do mapa); o trecho já percorrido fica escurecido.
 
+**Painel personalizável:** clique no ✎ no canto do painel de dados para arrastar os campos, mudar o tamanho (⤢), remover (✕), adicionar novos (médias, máximas, potência 3s, W/kg, tempo restante, calorias…) e escolher o número de colunas. O layout fica salvo no navegador.
+
 Sem rolo por perto? Use **Demo**: um controle deslizante (ou ↑/↓ no teclado) simula a potência.
 
 ## Conectar ao Strava
@@ -62,6 +64,8 @@ O Client Secret e os tokens ficam salvos só no `localStorage` do navegador. Par
 | `src/elevation.ts` | Perfil altimétrico em canvas. |
 | `src/export.ts` | Geração do arquivo TCX. |
 | `src/strava.ts` | OAuth do Strava (popup + `strava-callback.html` via `BroadcastChannel`), renovação de token e upload. |
+| `src/widgets.ts` | Catálogo de campos de dados (nome, unidade, como calcular). Para criar um campo novo, basta adicioná-lo aqui. |
+| `src/dashboard.ts` | Painel editável: layout salvo, arrastar e soltar (SortableJS), tamanhos e catálogo. |
 | `src/grade-colors.ts` | Faixas de cor por inclinação (mapa, perfil e HUD). |
 | `src/main.ts` | Estado do pedal, loop de simulação (10 Hz) e interface. |
 
