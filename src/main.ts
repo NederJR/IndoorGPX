@@ -8,6 +8,8 @@ import { AIR_DENSITY, stepSpeed } from './physics';
 import { buildTcx, downloadFile, type Sample } from './export';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { Dashboard } from './dashboard';
+import { climbStatus, detectClimbs, type Climb } from './climbs';
+import { ClimbsPanel } from './climbs-panel';
 import { formatDuration, type RideMetrics } from './widgets';
 import { Strava } from './strava';
 import { clearStoredRide, isRideSaved, loadStoredRide, storeRide, type StoredRide } from './ride-store';
@@ -74,6 +76,8 @@ const trainer = new Trainer();
 const hrm = new HeartRateMonitor();
 const strava = new Strava();
 const dashboard = new Dashboard($('hud'));
+const climbsPanel = new ClimbsPanel($('climbsPanel'), $('climbsNext'), $('climbsList'), $('climbsToggle'));
+let climbs: Climb[] = [];
 
 // ---------- Leitura dos sensores ----------
 trainer.onData = (d) => {
@@ -219,6 +223,7 @@ function renderPanels(now: number) {
   if (now - lastDoneAt > DONE_LINE_INTERVAL_MS) {
     lastDoneAt = now;
     if (state !== 'ready') mapView.updateDone(startDistance, route.positionAt(distance));
+    climbsPanel.update(distance, (d) => route!.elevationAt(d));
     profile.draw(distance, startDistance);
   }
   if (now - lastHudAt > HUD_INTERVAL_MS) {
@@ -266,8 +271,21 @@ function buildMetrics(r: Route): RideMetrics {
     movingTime,
     energy: stats.energy,
     riderKg: settings.riderKg,
+    ...climbMetrics(r),
   };
 }
+
+function climbMetrics(r: Route): Pick<RideMetrics, 'nextClimbIn' | 'climbLeft' | 'climbGainLeft'> {
+  const { current, next } = climbStatus(climbs, distance);
+  return {
+    nextClimbIn: next ? next.start - distance : null,
+    climbLeft: current ? current.end - distance : null,
+    climbGainLeft: current ? Math.max(0, r.elevationAt(current.end) - r.elevationAt(distance)) : null,
+  };
+}
+
+// Clique numa subida da lista: enquadra no mapa.
+climbsPanel.onSelect = (climb) => mapView.showRange(climb.start, climb.end);
 
 // ---------- Fluxo do pedal ----------
 function loadRoute(r: Route) {
@@ -282,6 +300,10 @@ function loadRoute(r: Route) {
   mapView.invalidateSize();
   mapView.setRoute(r);
   profile.setRoute(r);
+  climbs = detectClimbs(r);
+  profile.setClimbs(climbs);
+  climbsPanel.setClimbs(climbs, r.hasElevation);
+  $('climbsPanel').hidden = false;
   resetRide(0);
 }
 

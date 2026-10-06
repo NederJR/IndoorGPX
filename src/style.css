@@ -550,14 +550,26 @@ dialog.wide {
   white-space: nowrap;
 }
 
-.demo-panel {
+.side-stack {
   position: absolute;
   top: 12px;
   right: 12px;
   z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 320px;
+  max-height: calc(100% - 120px);
+  pointer-events: none;
+}
+
+.side-stack > * {
+  pointer-events: auto;
+}
+
+.demo-panel {
   display: grid;
   gap: 6px;
-  width: 240px;
   padding: 12px 14px;
   background: var(--panel);
   border: 1px solid var(--accent);
@@ -572,6 +584,152 @@ dialog.wide {
 
 .demo-panel small {
   color: var(--text-muted);
+}
+
+/* ---------- Subidas detectadas ---------- */
+.climbs-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+  font-size: 13px;
+}
+
+.climbs-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.climbs-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
+
+.climbs-count:empty {
+  display: none;
+}
+
+.chev {
+  margin-left: auto;
+  transition: transform 0.2s;
+}
+
+.climbs-panel.collapsed .chev {
+  transform: rotate(-90deg);
+}
+
+.climbs-next {
+  margin-top: 8px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.climbs-next strong {
+  margin-right: 4px;
+}
+
+.cl-soon {
+  color: var(--warn);
+}
+
+.cl-now {
+  color: var(--accent);
+}
+
+.cl-progress {
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.cl-progress i {
+  display: block;
+  height: 100%;
+}
+
+.climbs-list {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-height: 0;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.climbs-panel.collapsed .climbs-list {
+  display: none;
+}
+
+.climbs-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.climbs-list li:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.climbs-list li.current {
+  border-color: var(--accent);
+  background: rgba(255, 107, 26, 0.12);
+}
+
+.climbs-list li.upcoming {
+  border-color: rgba(245, 179, 1, 0.5);
+}
+
+.climbs-list li.done {
+  opacity: 0.45;
+}
+
+.cl-num {
+  color: var(--text-muted);
+}
+
+.cl-range {
+  flex: 1;
+  min-width: 0;
+}
+
+.cl-cat {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cl-grade {
+  font-weight: 700;
 }
 
 .fab {
@@ -913,16 +1071,28 @@ small.help {
     opacity: 1;
   }
 
-  .demo-panel {
+  .side-stack {
     top: auto;
     bottom: 12px;
     right: 56px;
-    width: auto;
     left: 8px;
+    width: auto;
+    max-height: 45%;
+    flex-direction: column-reverse;
   }
 
   .grade-legend {
     display: none;
+  }
+
+  /* O painel de subidas ocupa o rodapé do mapa: "Seguir" vai para cima dos controles. */
+  .fab {
+    left: auto;
+    right: 8px;
+    bottom: auto;
+    top: 50%;
+    transform: none;
+    padding: 8px 12px;
   }
 
   .bottom {

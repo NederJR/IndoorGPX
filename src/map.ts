@@ -22,6 +22,8 @@ export class MapView {
   private follow = true;
   private lastPan = 0;
   private lastDoneIndex = -1;
+  private highlight?: L.Polyline;
+  private highlightTimer = 0;
 
   constructor(el: HTMLElement) {
     this.map = L.map(el, { zoomControl: false, preferCanvas: true }).setView([-15.78, -47.93], 4);
@@ -52,6 +54,7 @@ export class MapView {
   setRoute(route: Route) {
     this.route = route;
     this.routeLayer.clearLayers();
+    this.highlight = undefined;
     this.lastDoneIndex = -1;
     this.legend.addTo(this.map);
 
@@ -122,6 +125,25 @@ export class MapView {
     for (let i = startIdx; i <= pos.index; i++) latlngs.push(L.latLng(pts[i].lat, pts[i].lon));
     latlngs.push(L.latLng(pos.lat, pos.lon));
     this.doneLine.setLatLngs(latlngs);
+  }
+
+  /** Enquadra e destaca temporariamente um trecho da rota (ex.: uma subida). */
+  showRange(start: number, end: number) {
+    if (!this.route) return;
+    const a = this.route.positionAt(start);
+    const b = this.route.positionAt(end);
+    const latlngs = [L.latLng(a.lat, a.lon)];
+    for (let i = a.index + 1; i <= b.index; i++) latlngs.push(L.latLng(this.route.points[i].lat, this.route.points[i].lon));
+    latlngs.push(L.latLng(b.lat, b.lon));
+
+    this.highlight?.remove();
+    this.highlight = L.polyline(latlngs, { color: '#fff', weight: 16, opacity: 0.55 }).addTo(this.routeLayer);
+    this.highlight.bringToBack();
+    clearTimeout(this.highlightTimer);
+    this.highlightTimer = window.setTimeout(() => this.highlight?.remove(), 6000);
+
+    this.setFollow(false);
+    this.map.fitBounds(this.highlight.getBounds(), { padding: [80, 80], maxZoom: 16 });
   }
 
   resetDone() {

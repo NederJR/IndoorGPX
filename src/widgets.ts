@@ -27,6 +27,11 @@ export interface RideMetrics {
   movingTime: number; // s
   energy: number; // J
   riderKg: number;
+  /** Metros até o início da próxima subida (null se não houver). */
+  nextClimbIn: number | null;
+  /** Metros e ganho restantes da subida atual (null fora de subida). */
+  climbLeft: number | null;
+  climbGainLeft: number | null;
 }
 
 export interface WidgetDef {
@@ -109,6 +114,29 @@ export const WIDGETS: WidgetDef[] = [
   { id: 'elevation', name: 'Altitude', category: 'Percurso', unit: 'm', value: (m) => String(Math.round(m.elevation)) },
   { id: 'ascent', name: 'Subida', category: 'Percurso', unit: 'm', value: (m) => String(Math.round(m.ascent)) },
   { id: 'descent', name: 'Descida', category: 'Percurso', unit: 'm', value: (m) => String(Math.round(m.descent)) },
+
+  // Subidas
+  {
+    id: 'nextClimb',
+    name: 'Próx. subida',
+    category: 'Subidas',
+    unit: (m) => (m.climbLeft !== null ? '' : 'km'),
+    value: (m) => (m.climbLeft !== null ? 'Agora' : m.nextClimbIn !== null ? (m.nextClimbIn / 1000).toFixed(1) : '--'),
+  },
+  {
+    id: 'climbLeft',
+    name: 'Subida: restante',
+    category: 'Subidas',
+    unit: 'km',
+    value: (m) => (m.climbLeft !== null ? (m.climbLeft / 1000).toFixed(2) : '--'),
+  },
+  {
+    id: 'climbGainLeft',
+    name: 'Subida: falta subir',
+    category: 'Subidas',
+    unit: 'm',
+    value: (m) => (m.climbGainLeft !== null ? String(Math.round(m.climbGainLeft)) : '--'),
+  },
 
   // Tempo
   { id: 'time', name: 'Tempo', category: 'Tempo', value: (m) => formatDuration(m.movingTime) },

@@ -2,6 +2,7 @@
 
 import type { Route } from './gpx';
 import { gradeColor } from './grade-colors';
+import type { Climb } from './climbs';
 
 export class ElevationProfile {
   /** Disparado ao clicar no perfil, com a distância (m) correspondente. */
@@ -26,6 +27,12 @@ export class ElevationProfile {
       this.onPick(Math.max(0, Math.min(1, t)) * this.route.totalDistance);
     });
     this.resize();
+  }
+
+  private climbs: Climb[] = [];
+
+  setClimbs(climbs: Climb[]) {
+    this.climbs = climbs;
   }
 
   setRoute(route: Route) {
@@ -72,7 +79,7 @@ export class ElevationProfile {
     ctx.clearRect(0, 0, w, h);
     if (!route || this.samples.length < 2) return;
 
-    const padTop = 18;
+    const padTop = 24;
     const padBottom = 4;
     const min = route.minEle;
     const range = Math.max(20, route.maxEle - min);
@@ -106,6 +113,26 @@ export class ElevationProfile {
     ctx.strokeStyle = this.colors.line;
     ctx.lineWidth = 2;
     ctx.stroke();
+
+    // Subidas: barra fina acima do trecho e número no topo.
+    ctx.font = 'bold 10px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const c of this.climbs) {
+      const x0 = (c.start / route.totalDistance) * w;
+      const x1 = (c.end / route.totalDistance) * w;
+      ctx.fillStyle = gradeColor(c.avgGrade);
+      ctx.globalAlpha = 0.85;
+      ctx.fillRect(x0, padTop - 8, Math.max(2, x1 - x0), 3);
+      ctx.globalAlpha = 1;
+      const topY = Math.max(padTop, y(route.elevationAt(c.end)) - 9);
+      ctx.fillStyle = 'rgba(17,21,28,0.85)';
+      ctx.beginPath();
+      ctx.arc(x1, topY, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = gradeColor(c.avgGrade);
+      ctx.fillText(String(c.number), x1, topY + 0.5);
+    }
 
     // Marcador de posição
     const posY = y(route.elevationAt(distance));

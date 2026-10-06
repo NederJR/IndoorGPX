@@ -40,6 +40,8 @@ O mapa e o perfil altimétrico são coloridos pela inclinação (legenda no cant
 
 **Painel personalizável:** clique no ✎ no canto do painel de dados para arrastar os campos, mudar o tamanho (⤢), remover (✕), adicionar novos (médias, máximas, potência 3s, W/kg, tempo restante, calorias…) e escolher o número de colunas. O layout fica salvo no navegador.
 
+**Subidas detectadas:** o app identifica as subidas da rota (distância, ganho, inclinação média e categoria estilo Strava) e mostra a próxima subida ou quanto falta da atual. Clique numa subida para vê-la no mapa. As subidas também aparecem numeradas no perfil e há campos de dados para elas.
+
 Sem rolo por perto? Use **Demo**: um controle deslizante (ou ↑/↓ no teclado) simula a potência.
 
 ## Conectar ao Strava
@@ -66,6 +68,7 @@ O Client Secret e os tokens ficam salvos só no `localStorage` do navegador. Par
 | `src/strava.ts` | OAuth do Strava (popup + `strava-callback.html` via `BroadcastChannel`), renovação de token e upload. |
 | `src/widgets.ts` | Catálogo de campos de dados (nome, unidade, como calcular). Para criar um campo novo, basta adicioná-lo aqui. |
 | `src/dashboard.ts` | Painel editável: layout salvo, arrastar e soltar (SortableJS), tamanhos e catálogo. |
+| `src/climbs.ts` / `src/climbs-panel.ts` | Detecção de subidas (ganho ≥ 15 m, ≥ 300 m, média ≥ 1,5%) e o painel "Subidas detectadas". |
 | `src/grade-colors.ts` | Faixas de cor por inclinação (mapa, perfil e HUD). |
 | `src/main.ts` | Estado do pedal, loop de simulação (10 Hz) e interface. |
 

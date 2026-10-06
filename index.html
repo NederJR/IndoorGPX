@@ -42,11 +42,21 @@
         </div>
       </div>
 
-      <section class="demo-panel" id="demoPanel" hidden>
-        <label for="demoPower">Potência simulada: <strong id="demoPowerValue">150 W</strong></label>
-        <input type="range" id="demoPower" min="0" max="600" step="5" value="150" />
-        <small>Use ↑ / ↓ no teclado para ajustar</small>
-      </section>
+      <div class="side-stack">
+        <section class="demo-panel" id="demoPanel" hidden>
+          <label for="demoPower">Potência simulada: <strong id="demoPowerValue">150 W</strong></label>
+          <input type="range" id="demoPower" min="0" max="600" step="5" value="150" />
+          <small>Use ↑ / ↓ no teclado para ajustar</small>
+        </section>
+
+        <section class="climbs-panel" id="climbsPanel" hidden>
+          <button class="climbs-header" id="climbsToggle" aria-label="Mostrar ou ocultar subidas">
+            <span>Subidas detectadas</span><span class="climbs-count"></span><span class="chev">▾</span>
+          </button>
+          <div class="climbs-next" id="climbsNext"></div>
+          <ol class="climbs-list" id="climbsList"></ol>
+        </section>
+      </div>
 
       <button class="fab" id="btnCenter" hidden title="Seguir ciclista">◎ Seguir</button>
 
