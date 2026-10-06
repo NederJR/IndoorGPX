@@ -8,6 +8,7 @@ import { GRADE_BANDS, gradeBand } from './grade-colors';
 /** Trecho percorrido: cinza escuro por cima das cores de inclinação. */
 const DONE_COLOR = '#3a4250';
 const FOLLOW_PAN_INTERVAL_MS = 1000;
+const BASE_LAYER_KEY = 'indoorgpx.baseLayer';
 
 export class MapView {
   onFollowChange?: (follow: boolean) => void;
@@ -41,10 +42,33 @@ export class MapView {
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       { maxZoom: 19, attribution: 'Imagens &copy; Esri' },
     );
-    street.addTo(this.map);
-    L.control
-      .layers({ Mapa: street, Relevo: topo, Satélite: satellite }, undefined, { position: 'bottomright' })
-      .addTo(this.map);
+    // Mapa do OpenStreetMap voltado a ciclistas: ciclovias, tipo de piso, relevo.
+    const cyclosm = L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
+      maxZoom: 20,
+      attribution: '<a href="https://www.cyclosm.org">CyclOSM</a> | &copy; OpenStreetMap',
+    });
+    const baseLayers: Record<string, L.TileLayer> = {
+      Ciclismo: cyclosm,
+      Mapa: street,
+      Relevo: topo,
+      Satélite: satellite,
+    };
+    // Lembra a última camada escolhida.
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(BASE_LAYER_KEY);
+    } catch {
+      // ignora
+    }
+    (baseLayers[saved ?? ''] ?? cyclosm).addTo(this.map);
+    L.control.layers(baseLayers, undefined, { position: 'bottomright' }).addTo(this.map);
+    this.map.on('baselayerchange', (e) => {
+      try {
+        localStorage.setItem(BASE_LAYER_KEY, e.name);
+      } catch {
+        // ignora
+      }
+    });
 
     this.routeLayer.addTo(this.map);
     this.map.on('dragstart', () => this.setFollow(false));
