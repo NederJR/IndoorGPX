@@ -9,3 +9,4 @@ Web app (Vite + TypeScript, sem framework) que simula rotas `.gpx` em rolo intel
 - Comandos do Control Point FTMS precisam ser serializados (fila em `Trainer.command`). Nunca escreva em paralelo.
 - Para testar sem rolo, use o modo Demo e `public/samples/exemplo.gpx`.
 - Strava: o OAuth abre em popup e o retorno chega via `BroadcastChannel` (`strava-callback.html`), sem recarregar o app. Isso é proposital, para não perder um pedal em andamento. Credenciais/tokens ficam no localStorage. O build é multi-página (`vite.config.ts`).
+- Proteção da atividade: o pedal é gravado no localStorage (`src/ride-store.ts`) a cada 10 s, ao pausar, finalizar e esconder a aba. Ao abrir, uma atividade não exportada/enviada é recuperada no resumo. O resumo só fecha depois de exportar, enviar ao Strava ou descartar com confirmação.

@@ -13,6 +13,9 @@ const SCOPE = 'activity:write';
 
 export const OAUTH_CHANNEL = 'indoorgpx-strava-oauth';
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000;
+const POPUP_POLL_MS = 500;
+/** Após o popup fechar, aguarda um pouco: a mensagem do callback pode chegar logo depois. */
+const POPUP_CLOSE_GRACE_MS = 1500;
 const UPLOAD_POLL_MS = 2000;
 const UPLOAD_TIMEOUT_MS = 120 * 1000;
 
@@ -52,7 +55,7 @@ export class StravaError extends Error {}
 
 export class Strava {
   private data: Stored = {};
-  private pendingAuth?: { state: string; resolve: (r: OAuthResult) => void };
+  private pendingAuth?: { state: string; resolve: (r: OAuthResult) => void; reject: (e: Error) => void };
 
   constructor() {
     try {
@@ -76,6 +79,10 @@ export class Strava {
     return !!(this.data.config?.clientId && this.data.config?.clientSecret);
   }
 
+  get connecting(): boolean {
+    return !!this.pendingAuth;
+  }
+
   get connected(): boolean {
     return !!this.data.tokens;
   }
@@ -95,6 +102,9 @@ export class Strava {
   /** Abre o popup de autorização do Strava e troca o código por tokens. */
   async connect(): Promise<void> {
     if (!this.configured) throw new StravaError('Informe o Client ID e o Client Secret do seu app Strava.');
+    if (!/^\d+$/.test(this.config.clientId)) throw new StravaError('O Client ID deve conter apenas números.');
+    // Uma nova tentativa substitui a anterior.
+    this.cancelConnect();
     const state = crypto.randomUUID();
     const params = new URLSearchParams({
       client_id: this.config.clientId,
@@ -108,15 +118,36 @@ export class Strava {
     if (!popup) throw new StravaError('O navegador bloqueou o popup. Permita popups para este site.');
 
     const result = await new Promise<OAuthResult>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new StravaError('Tempo esgotado aguardando a autorização.')), AUTH_TIMEOUT_MS);
+      let closedAt = 0;
+      const cleanup = () => {
+        clearTimeout(timer);
+        clearInterval(poll);
+        if (this.pendingAuth?.state === state) this.pendingAuth = undefined;
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new StravaError('Tempo esgotado aguardando a autorização.'));
+      }, AUTH_TIMEOUT_MS);
+      // Com Client ID errado o Strava mostra um erro no popup e nunca volta; detectamos o fechamento.
+      const poll = setInterval(() => {
+        if (!popup.closed) return;
+        closedAt ||= Date.now();
+        if (Date.now() - closedAt < POPUP_CLOSE_GRACE_MS) return;
+        cleanup();
+        reject(new StravaError('A janela do Strava foi fechada antes de concluir. Confira o Client ID e tente de novo.'));
+      }, POPUP_POLL_MS);
       this.pendingAuth = {
         state,
         resolve: (r) => {
-          clearTimeout(timer);
+          cleanup();
           resolve(r);
         },
+        reject: (e) => {
+          cleanup();
+          reject(e);
+        },
       };
-    }).finally(() => (this.pendingAuth = undefined));
+    });
 
     if (result.error || !result.code) {
       throw new StravaError(result.error === 'access_denied' ? 'Autorização negada no Strava.' : `Erro do Strava: ${result.error}`);
@@ -125,6 +156,11 @@ export class Strava {
       throw new StravaError('A permissão para enviar atividades não foi concedida. Marque a opção na tela do Strava.');
     }
     await this.requestToken({ grant_type: 'authorization_code', code: result.code });
+  }
+
+  /** Cancela uma autorização em andamento. */
+  cancelConnect() {
+    this.pendingAuth?.reject(new StravaError('Conexão cancelada.'));
   }
 
   async disconnect() {

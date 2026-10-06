@@ -10,6 +10,7 @@ import { loadSettings, saveSettings, type Settings } from './settings';
 import { Dashboard } from './dashboard';
 import { formatDuration, type RideMetrics } from './widgets';
 import { Strava } from './strava';
+import { clearStoredRide, isRideSaved, loadStoredRide, storeRide, type StoredRide } from './ride-store';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -21,6 +22,7 @@ const GRADE_SEND_INTERVAL_MS = 1000;
 const GRADE_FORCE_RESEND_MS = 5000;
 const SAMPLE_INTERVAL_MS = 1000;
 const HUD_INTERVAL_MS = 200;
+const PERSIST_INTERVAL_MS = 10000;
 const DONE_LINE_INTERVAL_MS = 250;
 
 // ---------- Estado ----------
@@ -60,7 +62,10 @@ const live = { power: 0, cadence: 0, speedKmh: 0, hr: 0, trainerAt: 0, hrAt: 0, 
 let demoMode = false;
 let demoPower = 150;
 let wakeLock: WakeLockSentinel | null = null;
-let uploadedActivityUrl: string | null = null;
+/** Pedal exibido no resumo: o que acabou de terminar ou um recuperado ao abrir o app. */
+let summaryRide: StoredRide | null = null;
+let summaryRecovered = false;
+let lastPersistAt = 0;
 
 // ---------- Componentes ----------
 const mapView = new MapView($('map'));
@@ -140,6 +145,7 @@ function simulate(dt: number, now: number) {
   if (now - lastGradeSentAt >= GRADE_SEND_INTERVAL_MS) sendGrade(grade, now);
 
   if (Date.now() - lastSampleAt >= SAMPLE_INTERVAL_MS) recordSample();
+  if (now - lastPersistAt >= PERSIST_INTERVAL_MS) persistCurrentRide();
 
   if (distance >= route.totalDistance) {
     distance = route.totalDistance;
@@ -265,7 +271,7 @@ function buildMetrics(r: Route): RideMetrics {
 
 // ---------- Fluxo do pedal ----------
 function loadRoute(r: Route) {
-  if (hasUnsavedRide() && !confirm('Descartar o pedal atual e carregar outra rota?')) return;
+  if (hasUnsavedRide() && !confirm('A atividade atual não foi exportada nem enviada ao Strava e será perdida. Carregar outra rota mesmo assim?')) return;
   route = r;
   $('routeName').textContent =
     `${r.name} · ${(r.totalDistance / 1000).toFixed(1)} km · ↑${Math.round(r.totalAscent)} m` +
@@ -288,7 +294,8 @@ function resetRide(fromDistance: number) {
   stats = newStats();
   lastEle = route?.elevationAt(fromDistance) ?? 0;
   samples = [];
-  uploadedActivityUrl = null;
+  summaryRide = null;
+  clearStoredRide();
   lastGradeSent = NaN;
   mapView.resetDone();
   setState('ready');
@@ -299,7 +306,7 @@ function resetRide(fromDistance: number) {
 function startOrPause() {
   if (!route) return;
   if (state === 'finished') {
-    showSummary();
+    if (summaryRide) showSummary(summaryRide);
     return;
   }
   if (state === 'ready' || state === 'paused') {
@@ -314,6 +321,7 @@ function startOrPause() {
   } else if (state === 'riding') {
     setState('paused');
     speed = 0;
+    persistCurrentRide();
     if (trainer.status === 'connected') {
       lastGradeSent = 0;
       trainer.setSimulation(0, settings.crr, AIR_DENSITY * settings.cda).catch(() => {});
@@ -327,7 +335,40 @@ function finishRide() {
   speed = 0;
   if (trainer.status === 'connected') trainer.setSimulation(0, settings.crr, AIR_DENSITY * settings.cda).catch(() => {});
   releaseWakeLock();
-  showSummary();
+  summaryRide = snapshotRide();
+  summaryRecovered = false;
+  if (summaryRide) {
+    storeRide(summaryRide);
+    showSummary(summaryRide);
+  }
+}
+
+/** Retrato do pedal atual para gravar no navegador. */
+function snapshotRide(): StoredRide | null {
+  if (!route || !samples.length) return null;
+  return {
+    version: 1,
+    id: samples[0].time,
+    routeName: route.name,
+    state: state === 'riding' || state === 'paused' ? state : 'finished',
+    savedAt: Date.now(),
+    samples,
+    movingTime,
+    distance: distance - startDistance,
+    totalDistance: route.totalDistance - startDistance,
+    ascent,
+    rideTime: stats.rideTime,
+    energy: stats.energy,
+    exported: false,
+    uploadedUrl: null,
+  };
+}
+
+function persistCurrentRide() {
+  lastPersistAt = performance.now();
+  if (state !== 'riding' && state !== 'paused') return;
+  const ride = snapshotRide();
+  if (ride) storeRide(ride);
 }
 
 function setState(next: RideState) {
@@ -342,27 +383,75 @@ function setState(next: RideState) {
 }
 
 function hasUnsavedRide() {
-  return (state === 'riding' || state === 'paused') && samples.length > 0;
+  if ((state === 'riding' || state === 'paused') && samples.length > 0) return true;
+  return !!summaryRide && !isRideSaved(summaryRide);
 }
 
-function showSummary() {
-  const dist = (distance - startDistance) / 1000;
-  const avgSpeed = movingTime > 0 ? (distance - startDistance) / movingTime : 0;
-  const avgPower = stats.rideTime > 0 ? stats.energy / stats.rideTime : 0;
+function showSummary(ride: StoredRide) {
+  const avgSpeed = ride.movingTime > 0 ? ride.distance / ride.movingTime : 0;
+  const avgPower = ride.rideTime > 0 ? ride.energy / ride.rideTime : 0;
   const items: [string, string][] = [
-    ['Distância', `${dist.toFixed(2)} km`],
-    ['Tempo', formatDuration(movingTime)],
+    ['Distância', `${(ride.distance / 1000).toFixed(2)} km`],
+    ['Tempo', formatDuration(ride.movingTime)],
     ['Vel. média', `${(avgSpeed * 3.6).toFixed(1)} km/h`],
     ['Potência média', `${Math.round(avgPower)} W`],
-    ['Subida', `${Math.round(ascent)} m`],
-    ['Concluído', `${Math.round((dist * 1000 * 100) / Math.max(1, route!.totalDistance - startDistance))}%`],
+    ['Subida', `${Math.round(ride.ascent)} m`],
+    ['Concluído', `${Math.round((ride.distance * 100) / Math.max(1, ride.totalDistance))}%`],
   ];
   $('summaryContent').innerHTML = items.map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join('');
+
+  const when = new Date(ride.id).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  $('summaryTitle').textContent = summaryRecovered ? 'Atividade não salva' : 'Pedal concluído 🎉';
+  $('summaryNote').textContent = summaryRecovered
+    ? `${ride.routeName} · ${when}. ` +
+      (ride.state === 'finished'
+        ? 'Esta atividade terminou, mas não foi exportada nem enviada ao Strava.'
+        : 'O app foi fechado durante o pedal. Os dados até aquele momento foram recuperados.')
+    : `${ride.routeName} · ${when}`;
+
+  $('uploadStatus').hidden = true;
+  if (ride.uploadedUrl) setUploadStatus('Atividade enviada!', false, ride.uploadedUrl);
+  refreshSummaryControls();
+  const dialog = $<HTMLDialogElement>('summaryDialog');
+  if (!dialog.open) dialog.showModal();
+}
+
+function refreshSummaryControls() {
+  const ride = summaryRide;
+  if (!ride) return;
+  const saved = isRideSaved(ride);
   const btnUpload = $<HTMLButtonElement>('btnStravaUpload');
-  btnUpload.disabled = !!uploadedActivityUrl;
-  btnUpload.textContent = uploadedActivityUrl ? '✓ Enviado ao Strava' : 'Enviar ao Strava';
-  if (!uploadedActivityUrl) $('uploadStatus').hidden = true;
-  $<HTMLDialogElement>('summaryDialog').showModal();
+  btnUpload.disabled = !!ride.uploadedUrl;
+  btnUpload.textContent = ride.uploadedUrl ? '✓ Enviado ao Strava' : 'Enviar ao Strava';
+  $('btnExport').textContent = ride.exported ? '✓ TCX exportado' : 'Exportar TCX';
+  $('btnCloseSummary').hidden = !saved;
+  $('btnRestart').hidden = summaryRecovered || !route;
+  $('summaryGuard').hidden = saved;
+}
+
+/** Chamado após exportar ou enviar: a atividade está a salvo e não precisa mais ser recuperada. */
+function markSummarySaved() {
+  clearStoredRide();
+  refreshSummaryControls();
+}
+
+function closeSummary() {
+  $<HTMLDialogElement>('summaryDialog').close();
+  if (summaryRecovered) {
+    summaryRide = null;
+    summaryRecovered = false;
+  }
+}
+
+function discardSummaryRide() {
+  if (!summaryRide) return;
+  if (!isRideSaved(summaryRide) && !confirm('Descartar esta atividade? Ela não foi exportada nem enviada ao Strava e será perdida.')) return;
+  clearStoredRide();
+  const wasCurrent = !summaryRecovered;
+  summaryRide = null;
+  closeSummary();
+  summaryRecovered = false;
+  if (wasCurrent && route) resetRide(0);
 }
 
 function setUploadStatus(message: string, error = false, link?: string) {
@@ -381,7 +470,8 @@ function setUploadStatus(message: string, error = false, link?: string) {
 }
 
 async function uploadToStrava() {
-  if (!route || !samples.length) {
+  const ride = summaryRide;
+  if (!ride) {
     setUploadStatus('Nada gravado para enviar.', true);
     return;
   }
@@ -393,18 +483,18 @@ async function uploadToStrava() {
   const btn = $<HTMLButtonElement>('btnStravaUpload');
   btn.disabled = true;
   try {
-    const km = ((distance - startDistance) / 1000).toFixed(1);
+    const km = (ride.distance / 1000).toFixed(1);
     const result = await strava.uploadTcx(
-      buildTcx(samples, movingTime, `IndoorGPX – ${route.name}`),
+      buildTcx(ride.samples, ride.movingTime, `IndoorGPX – ${ride.routeName}`),
       {
-        name: `IndoorGPX: ${route.name}`,
-        description: `Pedal virtual no IndoorGPX · ${km} km da rota "${route.name}"`,
-        externalId: `indoorgpx-${samples[0].time}`,
+        name: `IndoorGPX: ${ride.routeName}`,
+        description: `Pedal virtual no IndoorGPX · ${km} km da rota "${ride.routeName}"`,
+        externalId: `indoorgpx-${ride.id}`,
       },
       (msg) => setUploadStatus(msg),
     );
-    uploadedActivityUrl = result.url;
-    btn.textContent = '✓ Enviado ao Strava';
+    ride.uploadedUrl = result.url;
+    markSummarySaved();
     setUploadStatus('Atividade enviada!', false, result.url);
   } catch (err) {
     btn.disabled = false;
@@ -413,14 +503,17 @@ async function uploadToStrava() {
 }
 
 function exportRide() {
-  if (!route || !samples.length) {
+  const ride = summaryRide;
+  if (!ride) {
     toast('Nada gravado ainda.', true);
     return;
   }
-  const tcx = buildTcx(samples, movingTime, `IndoorGPX – ${route.name}`);
-  const date = new Date(samples[0].time).toISOString().slice(0, 10);
-  const safeName = route.name.replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 60);
+  const tcx = buildTcx(ride.samples, ride.movingTime, `IndoorGPX – ${ride.routeName}`);
+  const date = new Date(ride.id).toISOString().slice(0, 10);
+  const safeName = ride.routeName.replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 60);
   downloadFile(`IndoorGPX_${date}_${safeName}.tcx`, tcx);
+  ride.exported = true;
+  markSummarySaved();
 }
 
 // ---------- Importação de GPX ----------
@@ -540,7 +633,21 @@ $('btnFinish').addEventListener('click', () => {
 });
 $('btnExport').addEventListener('click', exportRide);
 $('btnStravaUpload').addEventListener('click', uploadToStrava);
+$('btnCloseSummary').addEventListener('click', closeSummary);
+$('btnDiscard').addEventListener('click', discardSummaryRide);
+// Esc não fecha o resumo enquanto a atividade não estiver salva.
+$('summaryDialog').addEventListener('cancel', (e) => {
+  e.preventDefault();
+  if (summaryRide && isRideSaved(summaryRide)) closeSummary();
+  else setUploadStatus('Exporte o arquivo ou envie ao Strava antes de fechar.', true);
+});
 $('btnRestart').addEventListener('click', () => {
+  if (
+    summaryRide &&
+    !isRideSaved(summaryRide) &&
+    !confirm('A atividade não foi exportada nem enviada ao Strava e será perdida. Pedalar de novo mesmo assim?')
+  )
+    return;
   $<HTMLDialogElement>('summaryDialog').close();
   resetRide(0);
 });
@@ -569,7 +676,10 @@ window.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('beforeunload', (e) => {
-  if (hasUnsavedRide()) e.preventDefault();
+  if (!hasUnsavedRide()) return;
+  persistCurrentRide();
+  e.preventDefault();
+  e.returnValue = '';
 });
 
 // ---------- Configurações ----------
@@ -603,35 +713,38 @@ function renderStravaStatus(message?: string) {
   const btn = $<HTMLButtonElement>('btnStravaConnect');
   $('stravaStatus').textContent =
     message ??
-    (strava.connected
+    (strava.connecting
+      ? 'Aguardando autorização na janela do Strava…'
+      : strava.connected
       ? `Conectado como ${strava.athleteName}`
       : strava.configured
         ? 'Não conectado'
         : 'Informe as credenciais do seu app Strava para conectar.');
-  btn.textContent = strava.connected ? 'Desconectar' : 'Conectar ao Strava';
-  btn.classList.toggle('strava', !strava.connected);
+  btn.textContent = strava.connecting ? 'Cancelar' : strava.connected ? 'Desconectar' : 'Conectar ao Strava';
+  btn.classList.toggle('strava', !strava.connected && !strava.connecting);
   $<HTMLDetailsElement>('stravaSetup').open = !strava.configured;
 }
 
 $('stravaDomain').textContent = location.hostname;
 
 $('btnStravaConnect').addEventListener('click', async () => {
-  const btn = $<HTMLButtonElement>('btnStravaConnect');
+  if (strava.connecting) {
+    strava.cancelConnect();
+    return;
+  }
   if (strava.connected) {
     await strava.disconnect();
     renderStravaStatus();
     return;
   }
   saveStravaConfig();
-  btn.disabled = true;
-  renderStravaStatus('Aguardando autorização na janela do Strava…');
+  const connecting = strava.connect();
+  renderStravaStatus();
   try {
-    await strava.connect();
+    await connecting;
     renderStravaStatus();
   } catch (err) {
     renderStravaStatus(err instanceof Error ? err.message : String(err));
-  } finally {
-    btn.disabled = false;
   }
 });
 
@@ -675,10 +788,22 @@ function releaseWakeLock() {
   wakeLock = null;
 }
 
+// Ao esconder a aba (minimizar, trocar de app, fechar), grava o pedal imediatamente.
+window.addEventListener('pagehide', persistCurrentRide);
 document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') persistCurrentRide();
   if (document.visibilityState === 'visible' && state === 'riding') requestWakeLock();
 });
 
 // ---------- Início ----------
+const recovered = loadStoredRide();
+if (recovered && !isRideSaved(recovered)) {
+  summaryRide = recovered;
+  summaryRecovered = true;
+  showSummary(recovered);
+} else if (recovered) {
+  clearStoredRide();
+}
+
 setInterval(tick, SIM_INTERVAL_MS);
 requestAnimationFrame(frame);

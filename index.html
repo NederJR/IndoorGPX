@@ -116,14 +116,19 @@
       </form>
     </dialog>
 
-    <dialog id="summaryDialog">
-      <h2>Pedal concluído 🎉</h2>
+    <dialog id="summaryDialog" class="wide">
+      <h2 id="summaryTitle">Pedal concluído 🎉</h2>
+      <p class="summary-note" id="summaryNote"></p>
       <div class="summary" id="summaryContent"></div>
+      <p class="summary-guard" id="summaryGuard">⚠ Exporte o arquivo ou envie ao Strava para não perder esta atividade.</p>
       <p class="upload-status" id="uploadStatus" hidden></p>
       <div class="dialog-actions">
+        <button class="btn danger-link" id="btnDiscard">Descartar</button>
+        <span class="spacer"></span>
         <button class="btn" id="btnRestart">Pedalar de novo</button>
         <button class="btn" id="btnExport">Exportar TCX</button>
         <button class="btn strava" id="btnStravaUpload">Enviar ao Strava</button>
+        <button class="btn primary" id="btnCloseSummary" hidden>Fechar</button>
       </div>
     </dialog>
 

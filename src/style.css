@@ -796,6 +796,40 @@ small.help {
   color: #ff8a4c;
 }
 
+.summary-note {
+  margin: -8px 0 16px;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.summary-guard {
+  margin: 16px 0 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(245, 179, 1, 0.12);
+  color: var(--warn);
+  font-size: 14px;
+}
+
+.dialog-actions {
+  flex-wrap: wrap;
+}
+
+.dialog-actions .spacer {
+  flex: 1;
+}
+
+.btn.danger-link {
+  border-color: transparent;
+  background: transparent;
+  color: #ff7b7f;
+}
+
+.btn.danger-link:hover:not(:disabled) {
+  background: rgba(229, 72, 77, 0.15);
+}
+
 .upload-status {
   margin: 16px 0 0;
   font-size: 14px;
