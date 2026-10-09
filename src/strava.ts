@@ -183,7 +183,7 @@ export class Strava {
     form.append('data_type', 'tcx');
     form.append('name', meta.name);
     form.append('description', meta.description);
-    form.append('trainer', '1');
+    // Não enviar "trainer": o Strava oculta o mapa de atividades marcadas como rolo.
     form.append('external_id', meta.externalId);
 
     onProgress?.('Enviando arquivo…');
@@ -203,11 +203,12 @@ export class Strava {
     }
 
     const activityId = upload.activity_id!;
-    // Marca como pedal virtual; se falhar, a atividade continua válida.
+    // Marca como pedal virtual (como o Zwift: aparece com mapa). Sem "trainer: true", que
+    // faz o Strava esconder o mapa. Se falhar, a atividade continua válida.
     await this.api(`/activities/${activityId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sport_type: 'VirtualRide', trainer: true }),
+      body: JSON.stringify({ sport_type: 'VirtualRide' }),
     }).catch((err) => console.warn('Strava: não foi possível definir VirtualRide', err));
 
     return { activityId, url: `https://www.strava.com/activities/${activityId}` };
